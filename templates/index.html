@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earnings Comparison Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+        .drop-zone.dragover {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .file-selected {
+            border-color: #48bb78;
+            background-color: #f0fff4;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">Earnings Comparison Tool</h1>
+        
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
+            <form id="uploadForm" class="space-y-6">
+                <div class="space-y-4">
+                    <!-- ASCAP Drop Zone -->
+                    <div id="ascapDropZone" class="drop-zone rounded-lg p-8 text-center cursor-pointer">
+                        <div class="space-y-2">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="text-sm text-gray-600">
+                                <label for="ascapFile" class="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500">
+                                    <span>Drop ASCAP file here</span>
+                                    <input id="ascapFile" name="ascap" type="file" class="sr-only" accept=".csv">
+                                </label>
+                                <p class="pl-1">or click to select</p>
+                            </div>
+                        </div>
+                        <p id="ascapFileName" class="mt-2 text-sm text-gray-500"></p>
+                    </div>
+
+                    <!-- BMI Drop Zone -->
+                    <div id="bmiDropZone" class="drop-zone rounded-lg p-8 text-center cursor-pointer">
+                        <div class="space-y-2">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="text-sm text-gray-600">
+                                <label for="bmiFile" class="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500">
+                                    <span>Drop BMI file here</span>
+                                    <input id="bmiFile" name="bmi" type="file" class="sr-only" accept=".csv">
+                                </label>
+                                <p class="pl-1">or click to select</p>
+                            </div>
+                        </div>
+                        <p id="bmiFileName" class="mt-2 text-sm text-gray-500"></p>
+                    </div>
+                </div>
+
+                <div class="flex justify-center">
+                    <button type="submit" class="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50" disabled>
+                        Compare Earnings
+                    </button>
+                </div>
+            </form>
+
+            <!-- Loading State -->
+            <div id="loading" class="hidden mt-4 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                <p class="mt-2 text-sm text-gray-600">Processing files...</p>
+            </div>
+
+            <!-- Error Message -->
+            <div id="error" class="hidden mt-4 p-4 bg-red-50 rounded-md">
+                <p class="text-sm text-red-600"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('uploadForm');
+            const submitButton = form.querySelector('button[type="submit"]');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            let ascapFile = null;
+            let bmiFile = null;
+
+            function updateSubmitButton() {
+                submitButton.disabled = !(ascapFile && bmiFile);
+            }
+
+            function handleDrop(e, fileType) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const file = files[0];
+                    if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                        if (fileType === 'ascap') {
+                            document.getElementById('ascapFile').files = files;
+                            document.getElementById('ascapFileName').textContent = file.name;
+                            document.getElementById('ascapDropZone').classList.add('file-selected');
+                            ascapFile = file;
+                        } else {
+                            document.getElementById('bmiFile').files = files;
+                            document.getElementById('bmiFileName').textContent = file.name;
+                            document.getElementById('bmiDropZone').classList.add('file-selected');
+                            bmiFile = file;
+                        }
+                        updateSubmitButton();
+                    }
+                }
+                e.target.classList.remove('dragover');
+            }
+
+            ['ascap', 'bmi'].forEach(fileType => {
+                const dropZone = document.getElementById(`${fileType}DropZone`);
+                const fileInput = document.getElementById(`${fileType}File`);
+
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.add('dragover');
+                });
+
+                dropZone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.remove('dragover');
+                });
+
+                dropZone.addEventListener('drop', (e) => handleDrop(e, fileType));
+
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        document.getElementById(`${fileType}FileName`).textContent = file.name;
+                        dropZone.classList.add('file-selected');
+                        if (fileType === 'ascap') {
+                            ascapFile = file;
+                        } else {
+                            bmiFile = file;
+                        }
+                        updateSubmitButton();
+                    }
+                });
+            });
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                error.classList.add('hidden');
+                loading.classList.remove('hidden');
+                submitButton.disabled = true;
+
+                const formData = new FormData();
+                formData.append('ascap', ascapFile);
+                formData.append('bmi', bmiFile);
+
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'earnings_comparison_report.xlsx';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    } else {
+                        const data = await response.json();
+                        throw new Error(data.error || 'Failed to process files');
+                    }
+                } catch (err) {
+                    error.querySelector('p').textContent = err.message;
+                    error.classList.remove('hidden');
+                } finally {
+                    loading.classList.add('hidden');
+                    submitButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

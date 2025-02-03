@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: earnings-comparison-tool
+    env: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --timeout 300 --workers 3 --max-requests 1 --limit-request-line 0 --limit-request-field_size 0
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: MAX_UPLOAD_SIZE
+        value: 200000000
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1
