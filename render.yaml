@@ -10,6 +10,12 @@ services:
         value: 3.9.0
       - key: MAX_UPLOAD_SIZE
         value: 200000000
+      - key: GOOGLE_CLOUD_PROJECT
+        sync: false
+      - key: GOOGLE_CLOUD_STORAGE_BUCKET
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        sync: false
     disk:
       name: uploads
       mountPath: /app/uploads

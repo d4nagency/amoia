@@ -36,6 +36,9 @@ uploads/
 *.xlsx
 *.csv
 
+# Google Cloud credentials
+credentials/
+
 # OS specific
 .DS_Store
 Thumbs.db

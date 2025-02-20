@@ -3,20 +3,19 @@ import os
 from compare_earnings import compare_earnings
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
+from google.cloud import storage
+from config import *
+import tempfile
+
+# Initialize Google Cloud Storage client
+storage_client = storage.Client()
+bucket = storage_client.bucket(GOOGLE_CLOUD_STORAGE_BUCKET)
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-# Increase maximum file size to 200MB to handle both files
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size
-# Configure maximum request body size
-app.config['MAX_CONTENT_PATH'] = None
-# Configure request timeout
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-
-# Add ProxyFix middleware to handle larger requests
+app.config.from_object('config')
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
-# Ensure upload directory exists
+# Ensure upload directory exists for temporary files
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 @app.route('/')
@@ -35,12 +34,20 @@ def upload_files():
         if ascap_file.filename == '' or bmi_file.filename == '':
             return jsonify({'error': 'No selected files'}), 400
         
-        # Save files
-        ascap_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(ascap_file.filename))
-        bmi_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(bmi_file.filename))
-        
-        ascap_file.save(ascap_path)
-        bmi_file.save(bmi_path)
+        # Create temporary files
+        with tempfile.NamedTemporaryFile(delete=False) as temp_ascap:
+            ascap_file.save(temp_ascap.name)
+            # Upload to Google Cloud Storage
+            blob = bucket.blob(f'uploads/{secure_filename(ascap_file.filename)}')
+            blob.upload_from_filename(temp_ascap.name)
+            ascap_path = temp_ascap.name
+
+        with tempfile.NamedTemporaryFile(delete=False) as temp_bmi:
+            bmi_file.save(temp_bmi.name)
+            # Upload to Google Cloud Storage
+            blob = bucket.blob(f'uploads/{secure_filename(bmi_file.filename)}')
+            blob.upload_from_filename(temp_bmi.name)
+            bmi_path = temp_bmi.name
         
         try:
             # Run comparison
@@ -48,18 +55,26 @@ def upload_files():
             
             if not report_path or not os.path.exists(report_path):
                 raise Exception("Failed to generate report")
-                
-            # Clean up uploaded files
-            os.remove(ascap_path)
-            os.remove(bmi_path)
             
-            # Send the report file
-            return send_file(
-                report_path, 
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True,
-                download_name='earnings_comparison_report.xlsx'
+            # Upload report to Google Cloud Storage
+            report_blob = bucket.blob(f'reports/{os.path.basename(report_path)}')
+            report_blob.upload_from_filename(report_path)
+            
+            # Clean up temporary files
+            os.unlink(ascap_path)
+            os.unlink(bmi_path)
+            
+            # Generate signed URL for report download
+            url = report_blob.generate_signed_url(
+                version="v4",
+                expiration=300,  # URL expires in 5 minutes
+                method="GET"
             )
+            
+            return jsonify({
+                'success': True,
+                'report_url': url
+            })
             
         except Exception as e:
             # Clean up files in case of error
