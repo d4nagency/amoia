@@ -1,5 +1,6 @@
 from flask import Flask, request, render_template, jsonify, send_file
 import os
+import json
 from compare_earnings import compare_earnings
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -7,8 +8,13 @@ from google.cloud import storage
 from config import *
 import tempfile
 
-# Initialize Google Cloud Storage client
-storage_client = storage.Client()
+# Initialize Google Cloud Storage client with credentials from environment variable
+credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+if credentials_json:
+    credentials_info = json.loads(credentials_json)
+    storage_client = storage.Client.from_service_account_info(credentials_info)
+else:
+    storage_client = storage.Client()
 bucket = storage_client.bucket(GOOGLE_CLOUD_STORAGE_BUCKET)
 
 app = Flask(__name__)
