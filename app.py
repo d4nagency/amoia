@@ -8,7 +8,6 @@ from werkzeug.exceptions import HTTPException
 from google.cloud import storage
 from config import *
 import tempfile
-from flask import HTTPException
 
 # Initialize Google Cloud Storage client with credentials from environment variable
 credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
@@ -19,9 +18,9 @@ else:
     storage_client = storage.Client()
 bucket = storage_client.bucket(GOOGLE_CLOUD_STORAGE_BUCKET)
 
+# Initialize Flask app
 app = Flask(__name__)
 app.config.from_object('config')
-app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024  # 300MB max file size
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
 # Ensure upload directory exists for temporary files
