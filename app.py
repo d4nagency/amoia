@@ -4,6 +4,7 @@ import json
 from compare_earnings import compare_earnings
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import HTTPException
 from google.cloud import storage
 from config import *
 import tempfile
