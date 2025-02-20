@@ -169,18 +169,21 @@
                         body: formData
                     });
 
+                    const data = await response.json();
+                    
                     if (response.ok) {
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'earnings_comparison_report.xlsx';
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                        document.body.removeChild(a);
+                        if (data.report_url) {
+                            // Create a temporary link and click it to download the file
+                            const a = document.createElement('a');
+                            a.href = data.report_url;
+                            a.download = 'earnings_comparison_report.xlsx';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        } else {
+                            throw new Error('No report URL in response');
+                        }
                     } else {
-                        const data = await response.json();
                         throw new Error(data.error || 'Failed to process files');
                     }
                 } catch (err) {

@@ -7,6 +7,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from google.cloud import storage
 from config import *
 import tempfile
+from flask import HTTPException
 
 # Initialize Google Cloud Storage client with credentials from environment variable
 credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
@@ -19,6 +20,7 @@ bucket = storage_client.bucket(GOOGLE_CLOUD_STORAGE_BUCKET)
 
 app = Flask(__name__)
 app.config.from_object('config')
+app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024  # 300MB max file size
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
 # Ensure upload directory exists for temporary files
@@ -40,18 +42,20 @@ def upload_files():
         if ascap_file.filename == '' or bmi_file.filename == '':
             return jsonify({'error': 'No selected files'}), 400
         
-        # Create temporary files
-        with tempfile.NamedTemporaryFile(delete=False) as temp_ascap:
+        # Create temporary files with .csv extension
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_ascap:
             ascap_file.save(temp_ascap.name)
-            # Upload to Google Cloud Storage
+            # Upload to Google Cloud Storage with chunked transfer
             blob = bucket.blob(f'uploads/{secure_filename(ascap_file.filename)}')
+            blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
             blob.upload_from_filename(temp_ascap.name)
             ascap_path = temp_ascap.name
 
-        with tempfile.NamedTemporaryFile(delete=False) as temp_bmi:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_bmi:
             bmi_file.save(temp_bmi.name)
-            # Upload to Google Cloud Storage
+            # Upload to Google Cloud Storage with chunked transfer
             blob = bucket.blob(f'uploads/{secure_filename(bmi_file.filename)}')
+            blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
             blob.upload_from_filename(temp_bmi.name)
             bmi_path = temp_bmi.name
         
@@ -91,6 +95,24 @@ def upload_files():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Add error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Pass through HTTP errors
+    if isinstance(e, HTTPException):
+        return jsonify({'error': e.description}), e.code
+    
+    # Handle non-HTTP exceptions
+    return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') == 'development'
