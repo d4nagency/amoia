@@ -93,4 +93,5 @@ def upload_files():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=debug)
