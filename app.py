@@ -41,25 +41,30 @@ def upload_files():
         
         if ascap_file.filename == '' or bmi_file.filename == '':
             return jsonify({'error': 'No selected files'}), 400
-        
-        # Create temporary files with .csv extension
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_ascap:
-            ascap_file.save(temp_ascap.name)
-            # Upload to Google Cloud Storage with chunked transfer
-            blob = bucket.blob(f'uploads/{secure_filename(ascap_file.filename)}')
-            blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
-            blob.upload_from_filename(temp_ascap.name)
-            ascap_path = temp_ascap.name
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_bmi:
-            bmi_file.save(temp_bmi.name)
-            # Upload to Google Cloud Storage with chunked transfer
-            blob = bucket.blob(f'uploads/{secure_filename(bmi_file.filename)}')
-            blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
-            blob.upload_from_filename(temp_bmi.name)
-            bmi_path = temp_bmi.name
+        # Validate file sizes before processing
+        max_size = app.config['MAX_CONTENT_LENGTH']
+        if request.content_length > max_size:
+            return jsonify({'error': f'Total upload size exceeds {max_size // (1024*1024)}MB limit'}), 413
         
         try:
+            # Create temporary files with .csv extension
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_ascap:
+                ascap_file.save(temp_ascap.name)
+                # Upload to Google Cloud Storage with chunked transfer
+                blob = bucket.blob(f'uploads/{secure_filename(ascap_file.filename)}')
+                blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
+                blob.upload_from_filename(temp_ascap.name)
+                ascap_path = temp_ascap.name
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_bmi:
+                bmi_file.save(temp_bmi.name)
+                # Upload to Google Cloud Storage with chunked transfer
+                blob = bucket.blob(f'uploads/{secure_filename(bmi_file.filename)}')
+                blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
+                blob.upload_from_filename(temp_bmi.name)
+                bmi_path = temp_bmi.name
+            
             # Run comparison
             report_path = compare_earnings(ascap_path, bmi_path)
             
@@ -73,6 +78,7 @@ def upload_files():
             # Clean up temporary files
             os.unlink(ascap_path)
             os.unlink(bmi_path)
+            os.unlink(report_path)
             
             # Generate signed URL for report download
             url = report_blob.generate_signed_url(
@@ -94,12 +100,17 @@ def upload_files():
             raise e
             
     except Exception as e:
+        app.logger.error(f"Upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # Add error handlers
 @app.errorhandler(404)
 def not_found_error(error):
     return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({'error': 'File too large'}), 413
 
 @app.errorhandler(500)
 def internal_error(error):

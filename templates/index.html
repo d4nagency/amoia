@@ -169,7 +169,12 @@
                         body: formData
                     });
 
-                    const data = await response.json();
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch (parseError) {
+                        throw new Error('Server returned an invalid response. Please try again.');
+                    }
                     
                     if (response.ok) {
                         if (data.report_url) {
@@ -187,6 +192,7 @@
                         throw new Error(data.error || 'Failed to process files');
                     }
                 } catch (err) {
+                    console.error('Upload error:', err);
                     error.querySelector('p').textContent = err.message;
                     error.classList.remove('hidden');
                 } finally {
