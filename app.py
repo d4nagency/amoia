@@ -8,15 +8,26 @@ from werkzeug.exceptions import HTTPException
 from google.cloud import storage
 from config import *
 import tempfile
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize Google Cloud Storage client with credentials from environment variable
-credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
-if credentials_json:
-    credentials_info = json.loads(credentials_json)
-    storage_client = storage.Client.from_service_account_info(credentials_info)
-else:
-    storage_client = storage.Client()
-bucket = storage_client.bucket(GOOGLE_CLOUD_STORAGE_BUCKET)
+try:
+    credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+    if credentials_json:
+        logger.info("Using credentials from environment variable")
+        credentials_info = json.loads(credentials_json)
+        storage_client = storage.Client.from_service_account_info(credentials_info)
+    else:
+        logger.info("Using default credentials")
+        storage_client = storage.Client()
+    bucket = storage_client.bucket(GOOGLE_CLOUD_STORAGE_BUCKET)
+except Exception as e:
+    logger.error(f"Error initializing Google Cloud Storage: {str(e)}")
+    raise
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -47,6 +58,8 @@ def upload_files():
         if request.content_length > max_size:
             return jsonify({'error': f'Total upload size exceeds {max_size // (1024*1024)}MB limit'}), 413
         
+        logger.info(f"Processing files: ASCAP={ascap_file.filename}, BMI={bmi_file.filename}")
+        
         try:
             # Create temporary files with .csv extension
             with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_ascap:
@@ -65,11 +78,14 @@ def upload_files():
                 blob.upload_from_filename(temp_bmi.name)
                 bmi_path = temp_bmi.name
             
+            logger.info("Running comparison...")
             # Run comparison
             report_path = compare_earnings(ascap_path, bmi_path)
             
             if not report_path or not os.path.exists(report_path):
                 raise Exception("Failed to generate report")
+            
+            logger.info(f"Report generated: {report_path}")
             
             # Upload report to Google Cloud Storage
             report_blob = bucket.blob(f'reports/{os.path.basename(report_path)}')
@@ -87,12 +103,14 @@ def upload_files():
                 method="GET"
             )
             
+            logger.info("Processing complete")
             return jsonify({
                 'success': True,
                 'report_url': url
             })
             
         except Exception as e:
+            logger.error(f"Error during file processing: {str(e)}")
             # Clean up files in case of error
             for file_path in [ascap_path, bmi_path]:
                 if os.path.exists(file_path):
@@ -100,7 +118,7 @@ def upload_files():
             raise e
             
     except Exception as e:
-        app.logger.error(f"Upload error: {str(e)}")
+        logger.error(f"Upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # Add error handlers
@@ -114,15 +132,12 @@ def request_entity_too_large(error):
 
 @app.errorhandler(500)
 def internal_error(error):
+    logger.error(f"Internal error: {str(error)}")
     return jsonify({'error': 'Internal server error'}), 500
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Pass through HTTP errors
-    if isinstance(e, HTTPException):
-        return jsonify({'error': e.description}), e.code
-    
-    # Handle non-HTTP exceptions
+    logger.error(f"Unhandled exception: {str(e)}")
     return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

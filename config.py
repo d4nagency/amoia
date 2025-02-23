@@ -5,8 +5,8 @@ GOOGLE_CLOUD_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', 'amoia-451501')  # Your
 GOOGLE_CLOUD_STORAGE_BUCKET = os.getenv('GOOGLE_CLOUD_STORAGE_BUCKET', 'amoiabucket')  # Your bucket name
 
 # Local settings
-UPLOAD_FOLDER = 'uploads'
-MAX_CONTENT_LENGTH = 300 * 1024 * 1024  # 300MB max file size
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
+MAX_CONTENT_LENGTH = int(os.getenv('MAX_UPLOAD_SIZE', 300 * 1024 * 1024))  # 300MB max file size
 
 # Flask settings
 DEBUG = os.getenv('FLASK_ENV') == 'development'

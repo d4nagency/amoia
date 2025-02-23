@@ -4,19 +4,7 @@ services:
     env: python
     plan: standard
     buildCommand: pip install -r requirements.txt
-    startCommand: >
-      gunicorn wsgi:app 
-      --bind 0.0.0.0:$PORT 
-      --timeout 600 
-      --workers 2 
-      --threads 4 
-      --worker-class gthread 
-      --worker-tmp-dir /dev/shm 
-      --max-requests 1000 
-      --max-requests-jitter 50 
-      --limit-request-line 0 
-      --limit-request-field_size 0
-      --limit-request-fields 0
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --timeout 600 --workers 1 --threads 8 --worker-class gthread
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
@@ -28,7 +16,7 @@ services:
         sync: false
       - key: GOOGLE_CLOUD_STORAGE_BUCKET
         sync: false
-      - key: GOOGLE_APPLICATION_CREDENTIALS
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
         sync: false
     disk:
       name: uploads
